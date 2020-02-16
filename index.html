@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style type="text/css">
+      html, body {
+        background-color: #ccc;
+        padding: 0;
+        margin: 0;
+      }
+
+      #chart {
+        background-color: white;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+      }
+
+      svg {
+        background-color: white;
+      }
+
+      svg .string {
+        stroke: black;
+        stroke-width: 2px;
+      }
+
+      svg .fret {
+        stroke: #aaa;
+      }
+
+      svg .root-fret {
+        stroke: black;
+        stroke-width: 7px;
+        stroke-linecap: round;
+      }
+
+      svg .note-circle {
+        fill: rgba(255, 255, 255, 0.9);
+      }
+
+      svg text {
+        fill: black;
+        dominant-baseline: central;
+        text-anchor: middle;
+        font-family: monospace;
+        font-size: 12pt;
+      }
+
+      svg text.interval {
+        fill: #666;
+      }
+
+      svg .fret-number.special {
+        fill: red;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="chart"></div>
+    <script src="pedal-steel.ts"></script>
+  </body>
+</html>
