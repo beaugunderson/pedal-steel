@@ -126,7 +126,7 @@ function draw() {
     .attr('x2', d => fretX(d))
     .attr('y2', stringY(10));
 
-  fretNumbers.attr('x', d => fretX(d)).attr('y', stringY(10.5));
+  fretNumbers.attr('x', d => fretX(d)).attr('y', stringY(10.75));
 
   stringLines
     .attr('x1', fretX(0))

@@ -4,7 +4,8 @@
   "description": "",
   "main": "pedal-steel.ts",
   "scripts": {
-    "start": "budo pedal-steel.ts --open --live -- -p tsify"
+    "start": "budo pedal-steel.ts --open --live -- -p tsify",
+    "build": "browserify pedal-steel.ts -p tsify > pedal-steel.bundle.js"
   },
   "author": "Beau Gunderson <beau@beaugunderson.com> (https://beaugunderson.com/)",
   "license": "MIT",
@@ -16,6 +17,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^2.19.2",
     "@typescript-eslint/parser": "^2.19.2",
+    "browserify": "^16.5.0",
     "budo": "^11.6.3",
     "eslint": "^6.8.0",
     "eslint-config-airbnb": "^18.0.1",
