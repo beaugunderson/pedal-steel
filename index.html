@@ -54,6 +54,48 @@
         fill: rgba(255, 255, 255, 0.9);
       }
 
+      svg .note-circle.dimmed {
+        display: none;
+      }
+
+      svg .note.degree-1,
+      svg .note.degree-2,
+      svg .note.degree-3,
+      svg .note.degree-4,
+      svg .note.degree-5,
+      svg .note.degree-6,
+      svg .note.degree-7 {
+        fill: white;
+      }
+
+      svg .note-circle.degree-1 {
+        fill: #4e79a7;
+      }
+
+      svg .note-circle.degree-2 {
+        fill: #f28e2c;
+      }
+
+      svg .note-circle.degree-3 {
+        fill: #e15759;
+      }
+
+      svg .note-circle.degree-4 {
+        fill: #76b7b2;
+      }
+
+      svg .note-circle.degree-5 {
+        fill: #59a14f;
+      }
+
+      svg .note-circle.degree-6 {
+        fill: #edc949;
+      }
+
+      svg .note-circle.degree-7 {
+        fill: #af7aa1;
+      }
+
       svg text {
         fill: black;
         dominant-baseline: central;
@@ -116,7 +158,16 @@
           <option value="minor">minor</option>
         </select>
 
-        <label><input id="highlight-scale-notes" type="checkbox" /> highlight scale notes</label>
+        <label>
+          highlight 
+
+          <select id="highlight">
+            <option value="nothing">nothing</option>
+            <option value="scale-notes">scale notes</option>
+            <option value="scale-degree-colors">scale degree colors</option>
+            <option value="scale-degree-names">scale degree names</option>
+          </select>
+        </label>
       </div>
     </div>
 

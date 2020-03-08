@@ -1,7 +1,9 @@
 import * as d3 from 'd3';
 import { Distance, Note } from 'tonal';
-import { filter, pickBy } from 'lodash';
+import { filter, flatten, pickBy } from 'lodash';
 import { scale } from '@tonaljs/scale';
+
+type NoteGroup = [number, number, string];
 
 const FRETS = 15;
 const FRET_LIST = [];
@@ -82,13 +84,22 @@ function setup(settings = {}) {
     INTERVALS.push(`${Distance.interval(b, a)}, ${Distance.semitones(b, a)}`);
   }
 
+  const STRING_ROOTS = STRING_NOTES.map(notes => notes[0]);
+
+  const STRING_NOTE_PAIRS: NoteGroup[] = flatten(
+    STRING_NOTES.map((notes, string) => notes.map((note, fret) => [string + 1, fret, note]))
+  ) as NoteGroup[];
+
   return {
-    STRING_NOTES,
+    STRING_ROOTS,
+    STRING_NOTE_PAIRS,
     INTERVALS
   };
 }
 
 let data = setup();
+
+console.log({ data });
 
 // "levenshtein chord difference", e.g. weight pedals/levers < full bar movement < grip change
 
@@ -120,26 +131,18 @@ const fretNumbers = frets
   .attr('class', d => (SPECIAL_FRETS.includes(d) ? 'fret-number special' : 'fret-number'))
   .text(d => d);
 
-const strings = svg
+// TODO: denormalize data to string/note pairs with key function
+
+const stringLines = svg
   .append('g')
   .attr('class', 'strings')
-  .selectAll('.string-group')
-  .data(data.STRING_NOTES)
-  .enter()
-  .append('g')
-  .attr('class', 'string-group');
-
-const notes = strings
-  .selectAll('.note-circle, .note')
-  .data((d, i) => d.map(note => [i + 1, note]))
-  .enter();
-
-const stringLines = strings
   .selectAll('.string')
-  .data((d, i) => [i])
+  .data([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   .enter()
   .append('line')
-  .attr('class', 'string');
+  .attr('class', 'string')
+  .attr('stroke-dasharray', '1.5')
+  .style('stroke-width', d => d / 2);
 
 const intervalTexts = svg
   .append('g')
@@ -151,41 +154,174 @@ const intervalTexts = svg
   .attr('class', 'interval')
   .text(d => d);
 
-const noteCircles = notes
+const noteCircles = svg
+  .append('g')
+  .attr('class', 'note-circles')
   .selectAll('.note-circle')
-  .data(d => [d])
+  .data(data.STRING_NOTE_PAIRS, d => `${d[0]}-${d[2]}`);
+
+const noteCirclesEnter = noteCircles
   .enter()
   .append('circle')
   .attr('class', 'note-circle')
   .attr('r', 15);
 
-const noteTexts = notes
+noteCircles.exit().remove();
+
+const noteTexts = svg
+  .append('g')
+  .attr('class', 'notes')
   .selectAll('.note')
-  .data(d => [d])
+  .data(data.STRING_NOTE_PAIRS, d => `${d[0]}-${d[2]}`);
+
+const noteTextsEnter = noteTexts
   .enter()
   .append('text')
   .attr('class', 'note')
-  .text(d => d[1]);
+  .text(d => d[2]);
+
+noteTexts.exit().remove();
+
+const xAmount = (string: number) => ([3, 6].includes(string) ? 1 : 2);
+
+const xMovement = (d: NoteGroup) =>
+  d[1] > FRETS / 2 ? fretX(d[1] + xAmount(d[0])) : fretX(d[1] - xAmount(d[0]));
 
 function update() {
   data = setup(SETTINGS);
 
-  strings.data(data.STRING_NOTES).transition();
+  const scaleInformation = scale(currentScale());
+  const simplifiedScale = scaleInformation.notes.map((note: string) => Note.simplify(note, true));
 
-  intervalTexts.data(data.INTERVALS).transition();
+  const transition = svg.transition().duration(750);
 
-  draw();
+  svg
+    .select('.note-circles')
+    .selectAll('.note-circle')
+    .data(data.STRING_NOTE_PAIRS, d => `${d[0]}-${d[2]}`)
+    .join(
+      enter =>
+        enter
+          .append('circle')
+          .attr('r', 15)
+          .attr('cx', xMovement)
+          .attr('cy', (d: NoteGroup) => stringY(d[0]))
+          .call(enter => enter.transition(transition).attr('cx', d => fretX(d[1]))),
+
+      update =>
+        update.call(update =>
+          update.transition(transition).attr('cx', (d: NoteGroup) => fretX(d[1]))
+        ),
+
+      exit =>
+        exit.call(exit =>
+          exit
+            .transition(transition)
+            .attr('cx', xMovement)
+            .remove()
+        )
+    )
+    .attr('class', (d: NoteGroup) => {
+      const note = d[2].replace(/\d+/g, '');
+
+      // if (SETTINGS.highlight === 'scale-notes') {
+      //   return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
+      // }
+
+      if (
+        SETTINGS.highlight === 'scale-degree-colors' ||
+        SETTINGS.highlight === 'scale-degree-names'
+      ) {
+        const degree = simplifiedScale.indexOf(note) + 1;
+
+        if (degree === 0) {
+          return 'note-circle dimmed';
+        }
+
+        return `note-circle degree-${degree}`;
+      }
+
+      return 'note-circle';
+    });
+
+  svg
+    .select('.notes')
+    .selectAll('.note')
+    .data(data.STRING_NOTE_PAIRS, d => `${d[0]}-${d[2]}`)
+    .join(
+      enter =>
+        enter
+          .append('text')
+          .attr('class', 'note')
+          .attr('x', xMovement)
+          .attr('y', (d: NoteGroup) => stringY(d[0]))
+          .call(enter => enter.transition(transition).attr('x', d => fretX(d[1]))),
+
+      update =>
+        update.call(update =>
+          update.transition(transition).attr('x', (d: NoteGroup) => fretX(d[1]))
+        ),
+
+      exit =>
+        exit.call(exit =>
+          exit
+            .transition(transition)
+            .attr('x', xMovement)
+            .remove()
+        )
+    )
+    .attr('class', (d: NoteGroup) => {
+      const note = d[2].replace(/\d+/g, '');
+
+      if (SETTINGS.highlight === 'scale-notes') {
+        return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
+      }
+
+      if (
+        SETTINGS.highlight === 'scale-degree-colors' ||
+        SETTINGS.highlight === 'scale-degree-names'
+      ) {
+        const degree = simplifiedScale.indexOf(note) + 1;
+
+        if (degree === 0) {
+          return 'note dimmed';
+        }
+
+        return `note degree-${degree}`;
+      }
+
+      return 'note';
+    })
+    .text((d: NoteGroup) => {
+      if (SETTINGS.highlight === 'scale-degree-names') {
+        const note = d[2].replace(/\d+/g, '');
+        const degree = simplifiedScale.indexOf(note) + 1;
+
+        return degree !== 0 ? degree : '';
+      }
+
+      if (SETTINGS.highlight === 'scale-degree-colors') {
+        const note = d[2].replace(/\d+/g, '');
+        const degree = simplifiedScale.indexOf(note) + 1;
+
+        return degree !== 0 ? d[2] : '';
+      }
+
+      return d[2];
+    });
+
+  intervalTexts
+    .data(data.INTERVALS)
+    .transition()
+    .text(d => d);
 }
 
-function draw() {
+function resize() {
   const WIDTH = chart.clientWidth;
   const HEIGHT = chart.clientHeight;
 
   fretX.range([PADDING, WIDTH - PADDING]);
   stringY.range([PADDING, Math.min(WIDTH * DESIRED_ASPECT, HEIGHT) - PADDING]);
-
-  const scaleInformation = scale(currentScale());
-  const simplifiedScale = scaleInformation.notes.map((note: string) => Note.simplify(note, true));
 
   svg.attr('width', WIDTH).attr('height', HEIGHT);
 
@@ -199,33 +335,22 @@ function draw() {
 
   stringLines
     .attr('x1', fretX(0))
-    .attr('y1', d => stringY(d + 1))
+    .attr('y1', d => stringY(d))
     .attr('x2', fretX(FRETS))
-    .attr('y2', d => stringY(d + 1));
+    .attr('y2', d => stringY(d));
 
   intervalTexts
     .attr('x', fretX(0.5))
     .attr('y', (d, i) => stringY(i + 1.5))
     .text(d => d);
 
-  type NoteGroup = [number, string];
-
-  noteCircles
-    .attr('cx', (d: NoteGroup) => fretX(data.STRING_NOTES[d[0] - 1].indexOf(d[1])))
+  noteCirclesEnter
+    .attr('cx', (d: NoteGroup) => fretX(d[1]))
     .attr('cy', (d: NoteGroup) => stringY(d[0]));
 
-  noteTexts
-    .attr('x', (d: NoteGroup) => fretX(data.STRING_NOTES[d[0] - 1].indexOf(d[1])))
-    .attr('y', (d: NoteGroup) => stringY(d[0]))
-    .attr('class', (d: NoteGroup) => {
-      const note = d[1].replace(/\d+/g, '');
-
-      if (SETTINGS.highlightScaleNotes) {
-        return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
-      }
-
-      return 'note';
-    });
+  noteTextsEnter
+    .attr('x', (d: NoteGroup) => fretX(d[1]))
+    .attr('y', (d: NoteGroup) => stringY(d[0]));
 }
 
 const SETTINGS = new Proxy(
@@ -233,7 +358,7 @@ const SETTINGS = new Proxy(
     A: false,
     B: false,
     C: false,
-    highlightScaleNotes: false
+    highlight: 'nothing'
   },
   {
     set: (target, property, value) => {
@@ -270,12 +395,8 @@ handle('scale', 'change', update);
 handle('scale-modifier', 'change', update);
 handle('scale-quality', 'change', update);
 
-handle(
-  'highlight-scale-notes',
-  'click',
-  () => (SETTINGS.highlightScaleNotes = !SETTINGS.highlightScaleNotes)
-);
+handle('highlight', 'change', () => (SETTINGS.highlight = selected('highlight')));
 
-draw();
+resize();
 
-window.addEventListener('resize', draw);
+window.addEventListener('resize', resize);
