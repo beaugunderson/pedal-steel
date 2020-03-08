@@ -4,17 +4,23 @@
   "description": "",
   "main": "pedal-steel.ts",
   "scripts": {
-    "start": "budo pedal-steel.ts --open --live -- -p tsify",
+    "start": "budo pedal-steel.ts --serve pedal-steel.bundle.js --open --live -- -p tsify",
     "build": "browserify pedal-steel.ts -p tsify > pedal-steel.bundle.js"
   },
   "author": "Beau Gunderson <beau@beaugunderson.com> (https://beaugunderson.com/)",
   "license": "MIT",
   "dependencies": {
+    "@tonaljs/key": "^3.4.4",
+    "@tonaljs/progression": "^3.2.9",
+    "@tonaljs/scale": "^3.3.2",
     "d3": "^5.15.0",
+    "lodash": "^4.17.15",
     "tonal": "^2.2.2",
     "typescript": "^3.7.5"
   },
   "devDependencies": {
+    "@types/d3": "^5.7.2",
+    "@types/lodash": "^4.14.149",
     "@typescript-eslint/eslint-plugin": "^2.19.2",
     "@typescript-eslint/parser": "^2.19.2",
     "browserify": "^16.5.0",

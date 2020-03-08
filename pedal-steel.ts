@@ -1,38 +1,94 @@
 import * as d3 from 'd3';
 import { Distance, Note } from 'tonal';
+import { filter, pickBy } from 'lodash';
+import { scale } from '@tonaljs/scale';
 
-const FRETS = 20;
+const FRETS = 15;
 const FRET_LIST = [];
+
+const PADDING = 25;
 
 for (let i = 0; i <= FRETS; i++) {
   FRET_LIST.push(i);
 }
 
-const STRING_TUNINGS = ['B2', 'D3', 'E3', 'F#3', 'G#3', 'B3', 'E4', 'G#4', 'D#4', 'F#4'].reverse();
+const PEDAL_EFFECTS = {
+  10: { A: 2 },
+  6: { B: 1 },
+  5: { A: 2, C: 2 },
+  4: { C: 2 },
+  3: { B: 1 }
+};
 
-const STRING_NOTES: string[][] = [];
+function indexToNote(index: number): number {
+  return index + 1;
+}
 
-const PADDING = 25;
+function upOneHalfStep(note: string): string {
+  return Note.simplify(Distance.transpose(note, '2m') as string, false) as string;
+}
 
-for (let note = 0; note < STRING_TUNINGS.length; note++) {
-  let currentNote: string = STRING_TUNINGS[note];
+function setup(settings = {}) {
+  const STRING_TUNINGS = [
+    'B2',
+    'D3',
+    'E3',
+    'F#3',
+    'G#3',
+    'B3',
+    'E4',
+    'G#4',
+    'D#4',
+    'F#4'
+  ].reverse();
 
-  STRING_NOTES[note] = [currentNote];
+  const activePedalNames = filter(Object.keys(pickBy(settings)), name =>
+    ['A', 'B', 'C'].includes(name)
+  );
 
-  for (let i = 0; i < FRETS; i++) {
-    currentNote = Note.simplify(Distance.transpose(currentNote, '2m') as string, false) as string;
-    STRING_NOTES[note].push(currentNote);
+  const STRING_NOTES: string[][] = [];
+
+  for (let stringIndex = 0; stringIndex < STRING_TUNINGS.length; stringIndex++) {
+    const stringNumber = indexToNote(stringIndex);
+    let pedalEffect: number;
+
+    for (const pedal of activePedalNames) {
+      pedalEffect = pedalEffect ?? PEDAL_EFFECTS[stringNumber]?.[pedal];
+    }
+
+    pedalEffect = pedalEffect ?? 0;
+
+    let currentNote: string = STRING_TUNINGS[stringIndex];
+
+    // apply pedal transposition
+    for (let i = 0; i < pedalEffect; i++) {
+      currentNote = upOneHalfStep(currentNote);
+    }
+
+    STRING_NOTES[stringIndex] = [currentNote];
+
+    for (let i = 0; i < FRETS; i++) {
+      currentNote = upOneHalfStep(currentNote);
+      STRING_NOTES[stringIndex].push(currentNote);
+    }
   }
+
+  const INTERVALS = [];
+
+  for (let string = 1; string < STRING_NOTES.length; string++) {
+    const a = STRING_NOTES[string - 1][0];
+    const b = STRING_NOTES[string][0];
+
+    INTERVALS.push(`${Distance.interval(b, a)}, ${Distance.semitones(b, a)}`);
+  }
+
+  return {
+    STRING_NOTES,
+    INTERVALS
+  };
 }
 
-const INTERVALS = [];
-
-for (let note = 1; note < STRING_TUNINGS.length; note++) {
-  const a = STRING_TUNINGS[note - 1];
-  const b = STRING_TUNINGS[note];
-
-  INTERVALS.push(`${Distance.interval(b, a)}, ${Distance.semitones(b, a)}`);
-}
+let data = setup();
 
 // "levenshtein chord difference", e.g. weight pedals/levers < full bar movement < grip change
 
@@ -68,7 +124,7 @@ const strings = svg
   .append('g')
   .attr('class', 'strings')
   .selectAll('.string-group')
-  .data(STRING_NOTES)
+  .data(data.STRING_NOTES)
   .enter()
   .append('g')
   .attr('class', 'string-group');
@@ -89,7 +145,7 @@ const intervalTexts = svg
   .append('g')
   .attr('class', 'intervals')
   .selectAll('.interval')
-  .data(INTERVALS)
+  .data(data.INTERVALS)
   .enter()
   .append('text')
   .attr('class', 'interval')
@@ -111,12 +167,25 @@ const noteTexts = notes
   .attr('class', 'note')
   .text(d => d[1]);
 
+function update() {
+  data = setup(SETTINGS);
+
+  strings.data(data.STRING_NOTES).transition();
+
+  intervalTexts.data(data.INTERVALS).transition();
+
+  draw();
+}
+
 function draw() {
   const WIDTH = chart.clientWidth;
   const HEIGHT = chart.clientHeight;
 
   fretX.range([PADDING, WIDTH - PADDING]);
   stringY.range([PADDING, Math.min(WIDTH * DESIRED_ASPECT, HEIGHT) - PADDING]);
+
+  const scaleInformation = scale(currentScale());
+  const simplifiedScale = scaleInformation.notes.map((note: string) => Note.simplify(note, true));
 
   svg.attr('width', WIDTH).attr('height', HEIGHT);
 
@@ -134,16 +203,78 @@ function draw() {
     .attr('x2', fretX(FRETS))
     .attr('y2', d => stringY(d + 1));
 
-  intervalTexts.attr('x', fretX(0.5)).attr('y', (d, i) => stringY(i + 1.5));
+  intervalTexts
+    .attr('x', fretX(0.5))
+    .attr('y', (d, i) => stringY(i + 1.5))
+    .text(d => d);
+
+  type NoteGroup = [number, string];
 
   noteCircles
-    .attr('cx', d => fretX(STRING_NOTES[d[0] - 1].indexOf(d[1])))
-    .attr('cy', d => stringY(d[0]));
+    .attr('cx', (d: NoteGroup) => fretX(data.STRING_NOTES[d[0] - 1].indexOf(d[1])))
+    .attr('cy', (d: NoteGroup) => stringY(d[0]));
 
   noteTexts
-    .attr('x', d => fretX(STRING_NOTES[d[0] - 1].indexOf(d[1])))
-    .attr('y', d => stringY(d[0]));
+    .attr('x', (d: NoteGroup) => fretX(data.STRING_NOTES[d[0] - 1].indexOf(d[1])))
+    .attr('y', (d: NoteGroup) => stringY(d[0]))
+    .attr('class', (d: NoteGroup) => {
+      const note = d[1].replace(/\d+/g, '');
+
+      if (SETTINGS.highlightScaleNotes) {
+        return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
+      }
+
+      return 'note';
+    });
 }
+
+const SETTINGS = new Proxy(
+  {
+    A: false,
+    B: false,
+    C: false,
+    highlightScaleNotes: false
+  },
+  {
+    set: (target, property, value) => {
+      // eslint-disable-next-line no-param-reassign
+      target[property] = value;
+
+      update();
+
+      return true;
+    }
+  }
+);
+
+function handle(id: string, type: string, handler) {
+  document.getElementById(id).addEventListener(type, handler);
+}
+
+function selected(id: string) {
+  return (document.getElementById(id) as HTMLSelectElement).selectedOptions[0].value;
+}
+
+handle('pedal-a', 'click', () => (SETTINGS.A = !SETTINGS.A));
+handle('pedal-b', 'click', () => (SETTINGS.B = !SETTINGS.B));
+handle('pedal-c', 'click', () => (SETTINGS.C = !SETTINGS.C));
+
+function currentScale() {
+  const root = selected('scale') + selected('scale-modifier');
+  const quality = selected('scale-quality');
+
+  return `${root} ${quality}`;
+}
+
+handle('scale', 'change', update);
+handle('scale-modifier', 'change', update);
+handle('scale-quality', 'change', update);
+
+handle(
+  'highlight-scale-notes',
+  'click',
+  () => (SETTINGS.highlightScaleNotes = !SETTINGS.highlightScaleNotes)
+);
 
 draw();
 
