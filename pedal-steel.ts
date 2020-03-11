@@ -1,6 +1,7 @@
 import * as d3 from 'd3';
 import { Distance, Note } from 'tonal';
 import { filter, flatten, pickBy } from 'lodash';
+import { note, transpose } from '@tonaljs/tonal';
 import { scale } from '@tonaljs/scale';
 
 type NoteGroup = [number, number, string];
@@ -26,9 +27,13 @@ function indexToNote(index: number): number {
   return index + 1;
 }
 
-function upOneHalfStep(note: string): string {
-  return Note.simplify(Distance.transpose(note, '2m') as string, false) as string;
+function upOneHalfStep(name: string): string {
+  return Note.simplify(Distance.transpose(name, '2m') as string, false) as string;
 }
+
+// function simplify(note: string): string {
+//   return Note.simplify(note, true);
+// }
 
 function setup(settings = {}) {
   const STRING_TUNINGS = [
@@ -87,7 +92,7 @@ function setup(settings = {}) {
   const STRING_ROOTS = STRING_NOTES.map(notes => notes[0]);
 
   const STRING_NOTE_PAIRS: NoteGroup[] = flatten(
-    STRING_NOTES.map((notes, string) => notes.map((note, fret) => [string + 1, fret, note]))
+    STRING_NOTES.map((notes, string) => notes.map((name, fret) => [string + 1, fret, name]))
   ) as NoteGroup[];
 
   return {
@@ -99,14 +104,13 @@ function setup(settings = {}) {
 
 let data = setup();
 
-console.log({ data });
-
 // "levenshtein chord difference", e.g. weight pedals/levers < full bar movement < grip change
 
 const DESIRED_ASPECT = 1 / 3;
 
 const SPECIAL_FRETS: any = [3, 5, 7, 9, 12, 12 + 3, 12 + 5, 12 + 7, 12 + 9, 12 + 12];
 
+// #region D3 setup
 const fretX = d3.scaleLinear().domain([0, FRETS]);
 const stringY = d3.scaleLinear().domain([1, 10]);
 
@@ -131,8 +135,6 @@ const fretNumbers = frets
   .attr('class', d => (SPECIAL_FRETS.includes(d) ? 'fret-number special' : 'fret-number'))
   .text(d => d);
 
-// TODO: denormalize data to string/note pairs with key function
-
 const stringLines = svg
   .append('g')
   .attr('class', 'strings')
@@ -141,8 +143,8 @@ const stringLines = svg
   .enter()
   .append('line')
   .attr('class', 'string')
-  .attr('stroke-dasharray', '1.5')
-  .style('stroke-width', d => d / 2);
+  .attr('stroke-dasharray', d => (d > 5 ? '1.5' : null))
+  .style('stroke-width', d => (d > 5 ? d / 2 : d / 2.75));
 
 const intervalTexts = svg
   .append('g')
@@ -166,8 +168,6 @@ const noteCirclesEnter = noteCircles
   .attr('class', 'note-circle')
   .attr('r', 15);
 
-noteCircles.exit().remove();
-
 const noteTexts = svg
   .append('g')
   .attr('class', 'notes')
@@ -179,8 +179,7 @@ const noteTextsEnter = noteTexts
   .append('text')
   .attr('class', 'note')
   .text(d => d[2]);
-
-noteTexts.exit().remove();
+// #endregion
 
 const xAmount = (string: number) => ([3, 6].includes(string) ? 1 : 2);
 
@@ -191,7 +190,7 @@ function update() {
   data = setup(SETTINGS);
 
   const scaleInformation = scale(currentScale());
-  const simplifiedScale = scaleInformation.notes.map((note: string) => Note.simplify(note, true));
+  const simplifiedScale = scaleInformation.notes.map((name: string) => Note.simplify(name, true));
 
   const transition = svg.transition().duration(750);
 
@@ -222,7 +221,7 @@ function update() {
         )
     )
     .attr('class', (d: NoteGroup) => {
-      const note = d[2].replace(/\d+/g, '');
+      const currentNote = d[2].replace(/\d+/g, '');
 
       // if (SETTINGS.highlight === 'scale-notes') {
       //   return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
@@ -232,13 +231,25 @@ function update() {
         SETTINGS.highlight === 'scale-degree-colors' ||
         SETTINGS.highlight === 'scale-degree-names'
       ) {
-        const degree = simplifiedScale.indexOf(note) + 1;
+        const degree = simplifiedScale.indexOf(currentNote) + 1;
 
         if (degree === 0) {
           return 'note-circle dimmed';
         }
 
         return `note-circle degree-${degree}`;
+      }
+
+      if (SETTINGS.highlight === 'chord-formula') {
+        const formula = chordFormula();
+
+        for (let i = 0; i < formula.notes.length; i++) {
+          if (note(currentNote).height === formula.notes[i].height) {
+            const degree = formula.degrees[i].replace(/[^0-9]/g, '');
+
+            return `note-circle degree-${degree}`;
+          }
+        }
       }
 
       return 'note-circle';
@@ -271,17 +282,17 @@ function update() {
         )
     )
     .attr('class', (d: NoteGroup) => {
-      const note = d[2].replace(/\d+/g, '');
+      const currentNote = d[2].replace(/\d+/g, '');
 
       if (SETTINGS.highlight === 'scale-notes') {
-        return simplifiedScale.includes(note) ? 'note highlighted' : 'note dimmed';
+        return simplifiedScale.includes(currentNote) ? 'note highlighted' : 'note dimmed';
       }
 
       if (
         SETTINGS.highlight === 'scale-degree-colors' ||
         SETTINGS.highlight === 'scale-degree-names'
       ) {
-        const degree = simplifiedScale.indexOf(note) + 1;
+        const degree = simplifiedScale.indexOf(currentNote) + 1;
 
         if (degree === 0) {
           return 'note dimmed';
@@ -294,15 +305,15 @@ function update() {
     })
     .text((d: NoteGroup) => {
       if (SETTINGS.highlight === 'scale-degree-names') {
-        const note = d[2].replace(/\d+/g, '');
-        const degree = simplifiedScale.indexOf(note) + 1;
+        const currentNote = d[2].replace(/\d+/g, '');
+        const degree = simplifiedScale.indexOf(currentNote) + 1;
 
         return degree !== 0 ? degree : '';
       }
 
       if (SETTINGS.highlight === 'scale-degree-colors') {
-        const note = d[2].replace(/\d+/g, '');
-        const degree = simplifiedScale.indexOf(note) + 1;
+        const currentNote = d[2].replace(/\d+/g, '');
+        const degree = simplifiedScale.indexOf(currentNote) + 1;
 
         return degree !== 0 ? d[2] : '';
       }
@@ -380,6 +391,10 @@ function selected(id: string) {
   return (document.getElementById(id) as HTMLSelectElement).selectedOptions[0].value;
 }
 
+function value(id: string) {
+  return (document.getElementById(id) as HTMLInputElement).value;
+}
+
 handle('pedal-a', 'click', () => (SETTINGS.A = !SETTINGS.A));
 handle('pedal-b', 'click', () => (SETTINGS.B = !SETTINGS.B));
 handle('pedal-c', 'click', () => (SETTINGS.C = !SETTINGS.C));
@@ -391,9 +406,59 @@ function currentScale() {
   return `${root} ${quality}`;
 }
 
+const CHORD_FORMULA_MAPPING = {
+  1: '1P',
+  2: 'M2',
+  3: 'M3',
+  4: '4P',
+  5: '5P',
+  6: 'M6',
+  7: 'M7',
+  9: 'M9',
+  11: 'P11',
+  13: 'M13',
+  b2: 'm2',
+  b3: 'm3',
+  b5: '5d',
+  b6: 'm6',
+  b7: 'm7',
+  bb7: '7d',
+  b9: '9d',
+  b13: 'm13',
+  '#5': '5A',
+  '#9': '9A',
+  '#11': '11A'
+};
+
+function chordFormula() {
+  const formula = value('chord-formula');
+  const root = value('chord-formula-root-note') + value('chord-formula-root-modifier');
+
+  const degrees = formula
+    .trim()
+    .split(/\s+/g)
+    .map(degree => CHORD_FORMULA_MAPPING[degree] || degree);
+
+  const notes = degrees.map(degree => note(transpose(root, degree)));
+
+  console.log({ notes, formula, degrees });
+
+  return {
+    notes,
+    formula,
+    degrees
+  };
+}
+
 handle('scale', 'change', update);
 handle('scale-modifier', 'change', update);
 handle('scale-quality', 'change', update);
+
+handle('chord-formula-root-note', 'change', update);
+handle('chord-formula-root-modifier', 'change', update);
+
+handle('chord-formula', 'change', update);
+handle('chord-formula', 'keyup', update);
 
 handle('highlight', 'change', () => (SETTINGS.highlight = selected('highlight')));
 
