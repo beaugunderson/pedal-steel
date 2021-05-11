@@ -15,7 +15,7 @@
     "@tonaljs/scale": "^3.3.5",
     "@tonaljs/tonal": "^3.5.0",
     "d3": "^5.15.0",
-    "lodash": "^4.17.19",
+    "lodash": "^4.17.21",
     "tonal": "^2.2.2",
     "typescript": "^3.8.3"
   },
