@@ -14,7 +14,7 @@
     "@tonaljs/progression": "^3.2.12",
     "@tonaljs/scale": "^3.3.5",
     "@tonaljs/tonal": "^3.5.0",
-    "d3": "^5.15.0",
+    "d3": "^7.6.1",
     "lodash": "^4.17.19",
     "tonal": "^2.2.2",
     "typescript": "^3.8.3"
