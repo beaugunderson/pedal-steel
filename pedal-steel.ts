@@ -245,7 +245,7 @@ function update() {
 
         for (let i = 0; i < formula.notes.length; i++) {
           if (note(currentNote).height === formula.notes[i].height) {
-            const degree = formula.degrees[i].replace(/[^0-9]/g, '');
+            const degree = parseInt(formula.degrees[i].replace(/[^0-9]/g, ''), 10) % 7;
 
             return `note-circle degree-${degree}`;
           }
@@ -441,7 +441,7 @@ function chordFormula() {
 
   const notes = degrees.map(degree => note(transpose(root, degree)));
 
-  console.log({ notes, formula, degrees });
+  // console.log({ notes, formula, degrees });
 
   return {
     notes,
